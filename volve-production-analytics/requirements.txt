@@ -1,0 +1,26 @@
+# Core data processing
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+
+# Statistical modeling and forecasting
+statsmodels>=0.14.0
+scikit-learn>=1.3.0
+
+# Visualization
+plotly>=5.18.0
+matplotlib>=3.8.0
+
+# Dashboard
+streamlit>=1.29.0
+
+# SharePoint integration (optional)
+msal>=1.24.0
+requests>=2.31.0
+
+# Development and testing
+pytest>=7.4.0
+ruff>=0.1.0
+
+# Utilities
+python-dotenv>=1.0.0
