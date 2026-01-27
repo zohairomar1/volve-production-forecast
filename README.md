@@ -16,11 +16,11 @@ We'll be following the agenda listed below, hopefully in a concise weelly manner
 - [x] 05 Data visualization story telling
 - [x] 06 Supervised machine learning regression (finding patterns)
 - [ ] 07 Supervised machine learning classification (finding boundaries) | **In Process**
-- [ ] 08 Unsupervised machine learning (no labels, I got covered mate) 
+- [ ] 08 Unsupervised machine learning (no labels, I got covered mate)
 - [ ] 09 Time series modeling (This is not a financial advice)
 - [ ] 10 Deep learning for tubular data (Welcome to over-fitting hh)
 - [ ] 11 Deeper learning lol (Intresting concepts)
-- [ ] 12 Case study 1 : 
+- [ ] 12 Case study 1 :
 - [ ] 13 Case study 2 :
 - [ ] 14 Case study 3 :
 - [ ] 15 Case study 4 :
