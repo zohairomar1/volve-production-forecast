@@ -17,7 +17,7 @@ from .features import add_rolling_features
 
 def get_last_month_summary(df: pd.DataFrame) -> Dict:
     """
-    Get summary statistics for the most recent month.
+    Get summary statistics for the most recent month with actual production.
 
     Parameters
     ----------
@@ -29,8 +29,15 @@ def get_last_month_summary(df: pd.DataFrame) -> Dict:
     Dict
         Summary statistics.
     """
-    # Get latest date
-    latest_date = df["date"].max()
+    # Find the last month with actual production (oil > 0)
+    monthly_totals = df.groupby("date")["oil"].sum()
+    months_with_production = monthly_totals[monthly_totals > 0]
+
+    if len(months_with_production) == 0:
+        latest_date = df["date"].max()
+    else:
+        latest_date = months_with_production.index.max()
+
     prev_month = latest_date - pd.DateOffset(months=1)
     year_ago = latest_date - pd.DateOffset(months=12)
 
@@ -67,7 +74,7 @@ def get_last_month_summary(df: pd.DataFrame) -> Dict:
 
 def get_top_wellbores(df: pd.DataFrame, n: int = 3) -> pd.DataFrame:
     """
-    Get top N wellbores by oil production in the latest month.
+    Get top N wellbores by oil production in the latest month with data.
 
     Parameters
     ----------
@@ -81,8 +88,19 @@ def get_top_wellbores(df: pd.DataFrame, n: int = 3) -> pd.DataFrame:
     pd.DataFrame
         Top wellbores with their production.
     """
-    latest_date = df["date"].max()
+    # Find the last month with actual production
+    monthly_totals = df.groupby("date")["oil"].sum()
+    months_with_production = monthly_totals[monthly_totals > 0]
+
+    if len(months_with_production) == 0:
+        latest_date = df["date"].max()
+    else:
+        latest_date = months_with_production.index.max()
+
     latest_data = df[df["date"] == latest_date]
+
+    # Filter out rows with NaN oil values
+    latest_data = latest_data.dropna(subset=["oil"])
 
     top = (
         latest_data.nlargest(n, "oil")[["wellbore", "oil", "gas", "water"]]
