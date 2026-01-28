@@ -1,0 +1,43 @@
+{
+  "evaluation_results": [
+    {
+      "mae": 45698.25,
+      "mape": 148305833333460.22,
+      "rmse": 47516.173412323515,
+      "n_observations": 12,
+      "series_id": "TOTAL",
+      "model": "baseline",
+      "horizon": 1
+    },
+    {
+      "mae": 9282.983682957109,
+      "mape": 38991097849247.87,
+      "rmse": 13852.694649109602,
+      "n_observations": 12,
+      "series_id": "TOTAL",
+      "model": "ets",
+      "horizon": 1
+    }
+  ],
+  "summary": {
+    "total_series_evaluated": 1,
+    "models_compared": [
+      "baseline",
+      "ets"
+    ],
+    "total_field_metrics": [
+      {
+        "model": "baseline",
+        "mae": 45698.25,
+        "mape": 148305833333460.22,
+        "rmse": 47516.173412323515
+      },
+      {
+        "model": "ets",
+        "mae": 9282.983682957109,
+        "mape": 38991097849247.87,
+        "rmse": 13852.694649109602
+      }
+    ]
+  }
+}

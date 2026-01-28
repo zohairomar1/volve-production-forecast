@@ -1,0 +1,27 @@
+VOLVE PRODUCTION REPORT - December 2016
+==================================================
+
+KEY METRICS
+--------------------
+Total Oil Production: 0 Sm3
+Month-over-Month Change: N/A
+Year-over-Year Change: -100.0%
+
+Total Gas Production: 0 Sm3
+Total Water Production: 0 Sm3
+
+TOP PRODUCING WELLBORES
+--------------------
+1. 15/9-F-4: N/A Sm3 oil
+
+FORECAST
+--------------------
+Next Month Forecast: 6,166 Sm3 oil
+Range: 0 - 52,631 Sm3
+
+LINKS
+--------------------
+Dashboard: http://localhost:8501
+
+--------------------------------------------------
+Report generated: 2026-01-27 14:07
