@@ -33,7 +33,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# Custom CSS
+# Custom CSS - ensure text visibility in both light and dark modes
 st.markdown("""
 <style>
     .metric-card {
@@ -42,11 +42,24 @@ st.markdown("""
         padding: 20px;
         margin: 10px 0;
     }
+    /* Fix metric text colors for visibility */
+    [data-testid="stMetricValue"] {
+        color: #1f2937 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #374151 !important;
+    }
+    [data-testid="stMetricDelta"] {
+        color: #059669 !important;
+    }
+    [data-testid="stMetricDelta"][data-testid-delta="negative"] {
+        color: #dc2626 !important;
+    }
     .stMetric {
-        background-color: #ffffff;
-        border-radius: 5px;
-        padding: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 15px;
+        border: 1px solid #e2e8f0;
     }
 </style>
 """, unsafe_allow_html=True)
