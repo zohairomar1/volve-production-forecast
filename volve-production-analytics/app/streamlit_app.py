@@ -210,7 +210,7 @@ def main():
             #### How to Use It
             1. **Select View Mode**: Total Field aggregates all wells; Single Wellbore drills down
             2. **Adjust Date Range**: Focus on specific time periods
-            3. **Choose Forecast Model**: ETS for trend-following, Baseline for seasonal patterns
+            3. **Choose Forecast Model**: ETS (flexible trend/seasonality) or Baseline (seasonal naive benchmark)
             4. **Review Anomalies**: Adjust z-score threshold for sensitivity
             5. **Export Data**: Download filtered data or forecasts for further analysis
             """)
@@ -218,11 +218,22 @@ def main():
         st.markdown("""
         #### Key Insights to Look For
         - 📉 **Declining Trends**: Sustained MoM decreases may indicate reservoir depletion
-        - 🔴 **Anomaly Spikes**: Large z-scores suggest operational issues or measurement errors
-        - 📊 **Model Performance**: MAPE < 20% indicates reliable forecasts for planning
+        - 🔶 **Anomaly Flags**: Large z-scores highlight unusual production behavior worth investigating
+        - 📊 **Model Performance**: Lower MAPE generally indicates better forecast reliability (thresholds vary by context)
 
         ---
         *Data: Volve Field (North Sea), operated by Equinor. Production period: 2008-2016.*
+        """)
+
+        # Key Analytical Decisions (portfolio signal)
+        st.markdown("#### Key Analytical Decisions")
+        st.markdown("""
+        - **Field-level aggregation** is default to show macro production behavior; wellbore mode enables diagnostics
+        - **Zero-production months** are excluded from training data and MAPE calculation (WAPE handles them more robustly)
+        - **Forecast floor at 0**: Production cannot be negative; model outputs are clipped accordingly
+        - **Rolling 6-month window** for anomaly detection balances responsiveness vs. noise reduction
+        - **12-month backtest window** provides statistically meaningful validation while preserving training data
+        - **Baseline model (seasonal naive)** serves as a benchmark, not a competitor—ETS should outperform it
         """)
 
     st.markdown('<p class="tooltip">💡 Sm³ = Standard cubic meters (volume at standard temperature & pressure)</p>',
@@ -267,7 +278,7 @@ def main():
     forecast_model = st.sidebar.selectbox(
         "Model", ["ets", "baseline"],
         format_func=lambda x: "Exponential Smoothing (ETS)" if x == "ets" else "Seasonal Naive (Baseline)",
-        help="ETS: Captures trend + seasonality\nBaseline: Uses same month from prior year"
+        help="ETS: Flexible model capturing trend and seasonality (Holt-Winters)\nSeasonal Naive: Benchmark using same month from prior year"
     )
 
     st.sidebar.header("⚠️ Anomaly Detection")
@@ -317,20 +328,36 @@ def main():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+        mom_pct = summary.get("mom_change_pct")
         st.metric(
             "Oil Production",
             format_number(summary["total_oil"], " Sm³"),
-            f"{summary['mom_change_pct']:+.1f}% MoM" if summary.get("mom_change_pct") else None,
+            f"{mom_pct:+.1f}% MoM" if mom_pct else None,
             help="Last month with production data"
         )
+        prev_oil = summary.get("prev_month_oil")
+        if prev_oil and prev_oil > 0:
+            st.caption(f"Prior month: {format_number(prev_oil, ' Sm³')}")
         if len(series_df_active) > 3 and "oil" in series_df_active.columns:
             st.plotly_chart(create_sparkline(series_df_active["oil"].tail(12)), use_container_width=True)
 
     with col2:
-        st.metric("Gas Production", format_number(summary["total_gas"], " Sm³"), help="Associated gas production")
+        gas_mom = summary.get("gas_mom_change_pct")
+        st.metric(
+            "Gas Production",
+            format_number(summary["total_gas"], " Sm³"),
+            f"{gas_mom:+.1f}% MoM" if gas_mom else None,
+            help="Associated gas production"
+        )
 
     with col3:
-        st.metric("Water Production", format_number(summary["total_water"], " Sm³"), help="Produced water volume")
+        water_mom = summary.get("water_mom_change_pct")
+        st.metric(
+            "Water Production",
+            format_number(summary["total_water"], " Sm³"),
+            f"{water_mom:+.1f}% MoM" if water_mom else None,
+            help="Produced water volume"
+        )
 
     with col4:
         yoy = summary.get("yoy_change_pct")
@@ -391,11 +418,23 @@ def main():
     forecast_df = generate_forecast(df_active, series_id, forecast_model, horizon=6)
     backtest_results, metrics = run_backtest(df_active, series_id, forecast_model, test_periods=12)
 
+    # Get comparison model metrics for benchmark table
+    comparison_model = "baseline" if forecast_model == "ets" else "ets"
+    _, comparison_metrics = run_backtest(df_active, series_id, comparison_model, test_periods=12)
+
     col_forecast, col_metrics = st.columns([2, 1])
 
     with col_forecast:
         if forecast_df is not None and len(series_df_active) > 0:
             historical, forecast = get_historical_with_forecast(df_active, forecast_df, series_id, "oil")
+
+            # Clip negative forecasts to 0 (production cannot be negative)
+            forecast = forecast.copy()
+            forecast["yhat"] = forecast["yhat"].clip(lower=0)
+            if "yhat_lower" in forecast.columns:
+                forecast["yhat_lower"] = forecast["yhat_lower"].clip(lower=0)
+            if "yhat_upper" in forecast.columns:
+                forecast["yhat_upper"] = forecast["yhat_upper"].clip(lower=0)
 
             fig = go.Figure()
             fig.add_trace(go.Scatter(
@@ -431,6 +470,7 @@ def main():
             forecast_display["yhat"] = forecast_display["yhat"].apply(lambda x: f"{x:,.0f}")
             forecast_display.columns = ["Month", "Forecast (Sm³)"]
             st.dataframe(forecast_display, hide_index=True, use_container_width=True)
+            st.caption("Note: Negative forecasts clipped to 0 (production floor)")
         else:
             st.warning("Unable to generate forecast. Check data availability.")
 
@@ -438,23 +478,86 @@ def main():
         st.markdown("### Model Performance")
 
         if metrics and backtest_results is not None and len(backtest_results) > 0:
-            mape = metrics.get("mape", 0)
+            mape = metrics.get("mape")
+            wape = metrics.get("wape")
             mae = metrics.get("mae", 0)
             rmse = metrics.get("rmse", 0)
             n_obs = metrics.get("n_observations", 0)
 
-            if mape < 15:
-                mape_color, mape_rating = "🟢", "Good"
-            elif mape < 30:
-                mape_color, mape_rating = "🟡", "Moderate"
-            else:
-                mape_color, mape_rating = "🔴", "Poor"
+            # Helper to format metric values
+            def fmt_pct(val):
+                if val is None:
+                    return "N/A"
+                try:
+                    if np.isnan(val):
+                        return "N/A"
+                except (TypeError, ValueError):
+                    pass
+                return f"{val:.1f}%"
 
-            st.metric("MAPE", f"{mape:.1f}%", help="Mean Absolute Percentage Error")
-            st.caption(f"{mape_color} {mape_rating} accuracy")
-            st.metric("MAE", format_number(mae, " Sm³"), help="Mean Absolute Error")
+            def fmt_vol(val):
+                if val is None:
+                    return "N/A"
+                try:
+                    if np.isnan(val):
+                        return "N/A"
+                except (TypeError, ValueError):
+                    pass
+                return f"{val:,.0f}"
+
+            def is_valid_metric(val):
+                """Check if metric value is valid (not None, not NaN)."""
+                if val is None:
+                    return False
+                try:
+                    return not np.isnan(val)
+                except (TypeError, ValueError):
+                    return True  # Non-numeric is treated as valid
+
+            # Display primary metrics in compact layout
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                wape_display = fmt_pct(wape)
+                st.metric("WAPE", wape_display, help="Weighted Absolute Percentage Error (robust to varying magnitudes)")
+                if wape_display == "N/A":
+                    st.caption("Undefined: total actual ≈ 0")
+            with col_m2:
+                mape_display = fmt_pct(mape)
+                st.metric("MAPE", mape_display, help="Mean Absolute Percentage Error (excludes zero actuals)")
+                if mape_display == "N/A":
+                    st.caption("Undefined: no non-zero actuals")
+
+            st.metric("MAE", format_number(mae, " Sm³"), help="Mean Absolute Error in volume units")
             st.metric("RMSE", format_number(rmse, " Sm³"), help="Root Mean Squared Error")
-            st.caption(f"Based on {n_obs} backtest predictions")
+            st.caption(f"Based on {n_obs} rolling-origin backtest predictions")
+
+            # Expanded model comparison table (ETS vs Baseline)
+            if comparison_metrics:
+                st.markdown("**Model Comparison (ETS vs Baseline)**")
+                current_name = "ETS" if forecast_model == "ets" else "Baseline"
+                other_name = "Baseline" if forecast_model == "ets" else "ETS"
+
+                c_wape = wape
+                c_mape = mape
+                c_mae = mae
+                c_rmse = rmse
+                o_wape = comparison_metrics.get("wape")
+                o_mape = comparison_metrics.get("mape")
+                o_mae = comparison_metrics.get("mae")
+                o_rmse = comparison_metrics.get("rmse")
+
+                comp_data = {
+                    "Metric": ["MAE (Sm³)", "RMSE (Sm³)", "MAPE", "WAPE"],
+                    current_name: [fmt_vol(c_mae), fmt_vol(c_rmse), fmt_pct(c_mape), fmt_pct(c_wape)],
+                    other_name: [fmt_vol(o_mae), fmt_vol(o_rmse), fmt_pct(o_mape), fmt_pct(o_wape)]
+                }
+                st.dataframe(pd.DataFrame(comp_data), hide_index=True, use_container_width=True)
+
+                # Interpretation note
+                st.caption("""
+                **Reading this table:** Lower values = better. Baseline is a benchmark (same-month-last-year).
+                MAPE can be unstable with zeros; WAPE is more robust.
+                """)
 
             if len(backtest_results) > 3:
                 st.markdown("**Backtest: Actual vs Predicted**")
@@ -479,10 +582,11 @@ def main():
         with st.expander("📋 Assumptions & Limitations"):
             st.markdown("""
             - **Seasonality**: 12-month cycle assumed
-            - **Stationarity**: Model may struggle with structural breaks
-            - **Missing data**: Gaps interpolated or excluded
-            - **Shut-ins**: Zero-production periods excluded from training
+            - **Structural breaks**: This series has declining production; model captures trend but may lag sharp changes
+            - **Zero-production months**: Excluded from training and MAPE; WAPE is more robust here
+            - **Negative forecasts**: Clipped to 0 (production floor)
             - **External factors**: No drilling/maintenance schedules incorporated
+            - **Anomaly flags**: Statistical indicators only, not confirmed operational events
             """)
 
     # =========================================================================
@@ -542,18 +646,40 @@ def main():
             st.markdown("### Summary")
 
             if n_anomalies > 0:
-                st.error(f"**{n_anomalies}** anomalies detected")
-                st.markdown("**Flagged Periods:**")
-                for _, row in anomalies_flagged.head(5).iterrows():
-                    direction = "📉 Drop" if row["zscore"] < 0 else "📈 Spike"
-                    st.markdown(f"- {row['date'].strftime('%Y-%m')}: {direction} (z={row['zscore']:.1f})")
+                st.warning(f"**{n_anomalies}** anomalies flagged")
+
+                # Anomaly table
+                st.markdown("**Flagged Points**")
+                anomaly_table = anomalies_flagged[["date", anomaly_column, "rolling_mean", "zscore"]].copy()
+                anomaly_table["date"] = anomaly_table["date"].dt.strftime("%Y-%m")
+                anomaly_table[anomaly_column] = anomaly_table[anomaly_column].apply(lambda x: f"{x:,.0f}")
+                anomaly_table["rolling_mean"] = anomaly_table["rolling_mean"].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
+                anomaly_table["zscore"] = anomaly_table["zscore"].apply(lambda x: f"{x:+.1f}")
+                anomaly_table.columns = ["Date", "Value", "Rolling Avg", "Z-Score"]
+                st.dataframe(anomaly_table.head(10), hide_index=True, use_container_width=True)
             else:
-                st.success("✅ **0 anomalies** detected")
+                st.success("✅ **0 anomalies** flagged")
                 st.markdown("All observations within normal range.")
+
+                # Empty state table
+                st.markdown("**Flagged Points**")
+                empty_df = pd.DataFrame(columns=["Date", "Value", "Rolling Avg", "Z-Score"])
+                st.dataframe(empty_df, hide_index=True, use_container_width=True)
+                st.caption("No points exceed threshold")
 
             st.markdown("---")
             st.markdown("**Interpretation:**")
             st.markdown("- Z > 0: Above average\n- Z < 0: Below average\n- |Z| > threshold: Flagged")
+
+            # Anomaly Sensitivity Analysis
+            st.markdown("---")
+            st.markdown("**Threshold Sensitivity**")
+            sensitivity_data = []
+            for thresh in [2.0, 2.5, 3.0]:
+                count = len(anomaly_df[np.abs(anomaly_df["zscore"]) > thresh])
+                sensitivity_data.append({"Threshold": f"|z| > {thresh}", "Flagged": count})
+            st.dataframe(pd.DataFrame(sensitivity_data), hide_index=True, use_container_width=True)
+            st.caption("Statistical anomalies are not confirmed operational failures; use for triage.")
     else:
         st.info("Insufficient data for anomaly detection.")
 
@@ -561,27 +687,40 @@ def main():
     # DATA EXPORT
     # =========================================================================
     st.header("📥 Data Export")
+    st.caption("Exports reflect current filter selections (date range, wellbore, model)")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.download_button(
-            "📄 Download Production Data", data=df_filtered.to_csv(index=False),
-            file_name="volve_production.csv", mime="text/csv", help="Download filtered production data as CSV"
+            "📄 Download Production Data",
+            data=df_filtered.to_csv(index=False),
+            file_name="volve_production.csv",
+            mime="text/csv",
+            help="Download filtered production data as CSV",
+            key="download_production"  # Unique key prevents duplication
         )
 
     with col2:
         if forecast_df is not None:
             st.download_button(
-                "📈 Download Forecasts", data=forecast_df.to_csv(index=False),
-                file_name="volve_forecast.csv", mime="text/csv", help="Download forecast data as CSV"
+                "📈 Download Forecasts",
+                data=forecast_df.to_csv(index=False),
+                file_name="volve_forecast.csv",
+                mime="text/csv",
+                help="Download forecast data as CSV",
+                key="download_forecast"  # Unique key prevents duplication
             )
 
     with col3:
         if len(anomaly_df) > 0:
             st.download_button(
-                "⚠️ Download Anomaly Report", data=anomaly_df.to_csv(index=False),
-                file_name="volve_anomalies.csv", mime="text/csv", help="Download anomaly detection results"
+                "⚠️ Download Anomaly Report",
+                data=anomaly_df.to_csv(index=False),
+                file_name="volve_anomalies.csv",
+                mime="text/csv",
+                help="Download anomaly detection results",
+                key="download_anomaly"  # Unique key prevents duplication
             )
 
     # =========================================================================

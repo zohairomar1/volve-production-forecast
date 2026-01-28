@@ -50,6 +50,8 @@ def get_last_month_summary(df: pd.DataFrame) -> Dict:
     # Previous month total
     prev_data = df[df["date"] == prev_month]
     prev_oil = prev_data["oil"].sum() if len(prev_data) > 0 else np.nan
+    prev_gas = prev_data["gas"].sum() if len(prev_data) > 0 else np.nan
+    prev_water = prev_data["water"].sum() if len(prev_data) > 0 else np.nan
 
     # Year ago total
     yago_data = df[df["date"] == year_ago]
@@ -57,6 +59,8 @@ def get_last_month_summary(df: pd.DataFrame) -> Dict:
 
     # Calculate changes
     mom_change = ((total_oil - prev_oil) / prev_oil * 100) if prev_oil > 0 else np.nan
+    gas_mom_change = ((total_gas - prev_gas) / prev_gas * 100) if prev_gas > 0 else np.nan
+    water_mom_change = ((total_water - prev_water) / prev_water * 100) if prev_water > 0 else np.nan
     yoy_change = ((total_oil - yago_oil) / yago_oil * 100) if yago_oil > 0 else np.nan
 
     return {
@@ -67,6 +71,8 @@ def get_last_month_summary(df: pd.DataFrame) -> Dict:
         "total_water": round(total_water, 2),
         "prev_month_oil": round(prev_oil, 2) if not np.isnan(prev_oil) else None,
         "mom_change_pct": round(mom_change, 1) if not np.isnan(mom_change) else None,
+        "gas_mom_change_pct": round(gas_mom_change, 1) if not np.isnan(gas_mom_change) else None,
+        "water_mom_change_pct": round(water_mom_change, 1) if not np.isnan(water_mom_change) else None,
         "yago_oil": round(yago_oil, 2) if not np.isnan(yago_oil) else None,
         "yoy_change_pct": round(yoy_change, 1) if not np.isnan(yoy_change) else None,
     }

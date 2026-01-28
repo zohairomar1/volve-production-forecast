@@ -23,21 +23,53 @@ def mean_absolute_error(actual: np.ndarray, predicted: np.ndarray) -> float:
 def mean_absolute_percentage_error(
     actual: np.ndarray,
     predicted: np.ndarray,
-    epsilon: float = 1e-8,
 ) -> float:
     """
     Calculate Mean Absolute Percentage Error.
 
-    Handles division by zero by adding small epsilon.
+    Excludes observations where actual is zero or near-zero to avoid
+    division artifacts. Returns NaN if no valid observations remain.
     """
-    # Avoid division by zero
-    actual_safe = np.where(actual == 0, epsilon, actual)
-    return np.mean(np.abs((actual - predicted) / actual_safe)) * 100
+    # Exclude zero/near-zero actuals (standard MAPE practice)
+    mask = np.abs(actual) > 1e-3
+    if not np.any(mask):
+        return np.nan
+    actual_valid = actual[mask]
+    predicted_valid = predicted[mask]
+    return np.mean(np.abs((actual_valid - predicted_valid) / actual_valid)) * 100
 
 
 def root_mean_squared_error(actual: np.ndarray, predicted: np.ndarray) -> float:
     """Calculate Root Mean Squared Error."""
     return np.sqrt(np.mean((actual - predicted) ** 2))
+
+
+def weighted_absolute_percentage_error(
+    actual: np.ndarray,
+    predicted: np.ndarray,
+) -> float:
+    """
+    Calculate Weighted Absolute Percentage Error (WAPE).
+
+    More robust than MAPE for series with varying magnitudes or near-zero values.
+    WAPE = sum(|actual - predicted|) / sum(|actual|) * 100
+
+    Returns NaN only if total actual is zero (undefined denominator).
+    """
+    # Remove NaN values from both arrays (paired removal)
+    mask = ~(np.isnan(actual) | np.isnan(predicted))
+    actual_clean = actual[mask]
+    predicted_clean = predicted[mask]
+
+    if len(actual_clean) == 0:
+        return np.nan
+
+    total_actual = np.sum(np.abs(actual_clean))
+    if total_actual < 1e-3:
+        # Denominator is zero - WAPE undefined
+        return np.nan
+
+    return np.sum(np.abs(actual_clean - predicted_clean)) / total_actual * 100
 
 
 def rolling_origin_backtest(
@@ -154,19 +186,47 @@ def compute_backtest_metrics(backtest_results: pd.DataFrame) -> Dict:
     Returns
     -------
     Dict
-        Dictionary of metrics.
+        Dictionary of metrics including MAE, MAPE, WAPE, RMSE.
     """
     if len(backtest_results) == 0:
-        return {"mae": np.nan, "mape": np.nan, "rmse": np.nan, "n_observations": 0}
+        return {"mae": np.nan, "mape": np.nan, "wape": np.nan, "rmse": np.nan, "n_observations": 0}
 
-    actual = backtest_results["actual"].values
-    predicted = backtest_results["predicted"].values
+    # Convert to float64 arrays explicitly (fixes object dtype issues with np.isnan)
+    actual = np.asarray(backtest_results["actual"], dtype=np.float64)
+    predicted = np.asarray(backtest_results["predicted"], dtype=np.float64)
+
+    # Remove any NaN pairs - all metrics use the same cleaned arrays
+    valid_mask = ~(np.isnan(actual) | np.isnan(predicted))
+    actual_clean = actual[valid_mask]
+    predicted_clean = predicted[valid_mask]
+
+    if len(actual_clean) == 0:
+        return {"mae": np.nan, "mape": np.nan, "wape": np.nan, "rmse": np.nan, "n_observations": 0}
+
+    # Compute all metrics on the same cleaned arrays
+    mae_val = float(np.mean(np.abs(actual_clean - predicted_clean)))
+    rmse_val = float(np.sqrt(np.mean((actual_clean - predicted_clean) ** 2)))
+
+    # MAPE: exclude zero actuals
+    nonzero_mask = np.abs(actual_clean) > 1e-3
+    if np.any(nonzero_mask):
+        mape_val = float(np.mean(np.abs((actual_clean[nonzero_mask] - predicted_clean[nonzero_mask]) / actual_clean[nonzero_mask])) * 100)
+    else:
+        mape_val = np.nan
+
+    # WAPE: sum(|error|) / sum(|actual|)
+    total_actual = np.sum(np.abs(actual_clean))
+    if total_actual > 1e-3:
+        wape_val = float(np.sum(np.abs(actual_clean - predicted_clean)) / total_actual * 100)
+    else:
+        wape_val = np.nan  # Denominator is zero
 
     return {
-        "mae": float(mean_absolute_error(actual, predicted)),
-        "mape": float(mean_absolute_percentage_error(actual, predicted)),
-        "rmse": float(root_mean_squared_error(actual, predicted)),
-        "n_observations": len(backtest_results),
+        "mae": mae_val,
+        "mape": mape_val,
+        "wape": wape_val,
+        "rmse": rmse_val,
+        "n_observations": len(actual_clean),
     }
 
 
