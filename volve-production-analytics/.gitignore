@@ -1,6 +1,7 @@
 # Data files (keep small samples only)
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/Volve production data.csv
 data/processed/*.parquet
 data/processed/*.csv
 !data/processed/.gitkeep

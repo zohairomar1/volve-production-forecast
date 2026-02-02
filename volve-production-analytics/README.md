@@ -7,6 +7,8 @@ A production forecasting and KPI dashboard for oil & gas operations, built to su
 ![Tests](https://img.shields.io/badge/Tests-31%20Passing-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
+**[Live Demo](https://volve-analytics.streamlit.app/)**
+
 ---
 
 ## Problem Statement
@@ -160,7 +162,7 @@ volve-production-analytics/
 - [ ] Incorporate maintenance schedules as exogenous variables
 - [ ] Add change-point detection for structural break identification
 - [ ] Implement well-level hierarchical forecasting
-- [x] ~~Deploy to Streamlit Cloud for live demo~~
+- [x] ~~Deploy to Streamlit Cloud~~ — [Live](https://volve-analytics.streamlit.app/)
 - [ ] Add Prophet model for comparison
 
 ---
