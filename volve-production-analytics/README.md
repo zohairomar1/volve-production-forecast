@@ -160,16 +160,8 @@ volve-production-analytics/
 - [ ] Incorporate maintenance schedules as exogenous variables
 - [ ] Add change-point detection for structural break identification
 - [ ] Implement well-level hierarchical forecasting
-- [ ] Deploy to Streamlit Cloud for live demo
+- [x] ~~Deploy to Streamlit Cloud for live demo~~
 - [ ] Add Prophet model for comparison
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
-Volve Field data provided by Equinor under the [Equinor Open Data License](https://www.equinor.com/energy/volve-data-sharing).
 
 ---
 
