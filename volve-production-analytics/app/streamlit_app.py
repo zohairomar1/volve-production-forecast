@@ -31,7 +31,7 @@ from src.reporting import get_last_month_summary, get_top_wellbores
 # Page config
 st.set_page_config(
     page_title="Volve Production Analytics",
-    page_icon="V",
+    page_icon=":material/oil_barrel:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -193,7 +193,7 @@ def main():
     st.title("Volve Production Analytics")
 
     # Business Story Section
-    with st.expander("About This Dashboard", expanded=False):
+    with st.expander("About This Dashboard", expanded=False, icon=":material/info:"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -251,7 +251,7 @@ def main():
     # =========================================================================
     # SIDEBAR FILTERS
     # =========================================================================
-    st.sidebar.header("Filters")
+    st.sidebar.header("Filters", anchor=False)
     st.sidebar.markdown('<p class="tooltip">Configure your analysis view</p>', unsafe_allow_html=True)
 
     mode = st.sidebar.radio(
@@ -274,14 +274,14 @@ def main():
         help="Filter production data to this period"
     )
 
-    st.sidebar.header("Forecasting")
+    st.sidebar.header("Forecasting", anchor=False)
     forecast_model = st.sidebar.selectbox(
         "Model", ["ets", "baseline"],
         format_func=lambda x: "Exponential Smoothing (ETS)" if x == "ets" else "Seasonal Naive (Baseline)",
         help="ETS: Flexible model capturing trend and seasonality (Holt-Winters)\nSeasonal Naive: Benchmark using same month from prior year"
     )
 
-    st.sidebar.header("Anomaly Detection")
+    st.sidebar.header("Anomaly Detection", anchor=False)
     anomaly_threshold = st.sidebar.slider(
         "Z-Score Threshold", min_value=1.0, max_value=4.0, value=2.5, step=0.5,
         help="Higher = fewer anomalies flagged. 2-3 is typical."
@@ -319,7 +319,7 @@ def main():
     # =========================================================================
     # KPI SECTION
     # =========================================================================
-    st.header("Key Performance Indicators")
+    st.header("Key Performance Indicators", anchor=False, divider="gray")
     if mode == "Single Wellbore":
         st.markdown(f"**Currently viewing: {wellbore}**")
 
@@ -369,7 +369,7 @@ def main():
     # TOP WELLBORES
     # =========================================================================
     if mode == "Total Field":
-        st.header("Top Producing Wellbores")
+        st.header("Top Producing Wellbores", anchor=False, divider="gray")
         top_wellbores = get_top_wellbores(df_filtered, n=5)
 
         if len(top_wellbores) > 0 and top_wellbores["oil"].sum() > 0:
@@ -385,7 +385,7 @@ def main():
     # =========================================================================
     # PRODUCTION TRENDS
     # =========================================================================
-    st.header(f"Production Trends — {series_title}")
+    st.header(f"Production Trends — {series_title}", anchor=False, divider="gray")
 
     tab1, tab2, tab3 = st.tabs(["Oil", "Gas", "Water"])
 
@@ -413,7 +413,7 @@ def main():
     # =========================================================================
     # FORECASTING WITH VALIDATION
     # =========================================================================
-    st.header("Production Forecast & Model Validation")
+    st.header("Production Forecast & Model Validation", anchor=False, divider="gray")
 
     forecast_df = generate_forecast(df_active, series_id, forecast_model, horizon=6)
     backtest_results, metrics = run_backtest(df_active, series_id, forecast_model, test_periods=12)
@@ -579,7 +579,7 @@ def main():
         else:
             st.info("Insufficient data for backtest metrics.")
 
-        with st.expander("Assumptions & Limitations"):
+        with st.expander("Assumptions & Limitations", icon=":material/rule:"):
             st.markdown("""
             - **Seasonality**: 12-month cycle assumed
             - **Structural breaks**: This series has declining production; model captures trend but may lag sharp changes
@@ -592,7 +592,7 @@ def main():
     # =========================================================================
     # ANOMALY DETECTION
     # =========================================================================
-    st.header("Anomaly Detection")
+    st.header("Anomaly Detection", anchor=False, divider="gray")
 
     st.markdown(f'<p class="tooltip">Method: Rolling 6-month Z-score | Threshold: |z| > {anomaly_threshold} | Monitoring: {anomaly_column.upper()}</p>', unsafe_allow_html=True)
 
@@ -686,14 +686,14 @@ def main():
     # =========================================================================
     # DATA EXPORT
     # =========================================================================
-    st.header("Data Export")
+    st.header("Data Export", anchor=False, divider="gray")
     st.caption("Exports reflect current filter selections (date range, wellbore, model)")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.download_button(
-            "Download Production Data",
+            ":material/download: Production Data",
             data=df_filtered.to_csv(index=False),
             file_name="volve_production.csv",
             mime="text/csv",
@@ -704,7 +704,7 @@ def main():
     with col2:
         if forecast_df is not None:
             st.download_button(
-                "Download Forecasts",
+                ":material/download: Forecasts",
                 data=forecast_df.to_csv(index=False),
                 file_name="volve_forecast.csv",
                 mime="text/csv",
@@ -715,7 +715,7 @@ def main():
     with col3:
         if len(anomaly_df) > 0:
             st.download_button(
-                "Download Anomaly Report",
+                ":material/download: Anomaly Report",
                 data=anomaly_df.to_csv(index=False),
                 file_name="volve_anomalies.csv",
                 mime="text/csv",
