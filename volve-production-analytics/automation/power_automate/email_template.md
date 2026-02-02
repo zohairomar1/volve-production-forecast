@@ -33,7 +33,7 @@ Volve Production Report - {report_date}
 </head>
 <body>
     <div class="header">
-        <h1>🛢️ Volve Production Report</h1>
+        <h1>Volve Production Report</h1>
         <p>{report_date}</p>
     </div>
 
@@ -75,8 +75,8 @@ Volve Production Report - {report_date}
         {alerts_section}
 
         <h2>Quick Links</h2>
-        <a href="{dashboard_link}" class="button">📊 Open Dashboard</a>
-        <a href="{sharepoint_link}" class="button">📁 SharePoint Data</a>
+        <a href="{dashboard_link}" class="button">Open Dashboard</a>
+        <a href="{sharepoint_link}" class="button">SharePoint Data</a>
     </div>
 
     <div class="footer">

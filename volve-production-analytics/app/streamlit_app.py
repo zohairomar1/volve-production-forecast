@@ -31,7 +31,7 @@ from src.reporting import get_last_month_summary, get_top_wellbores
 # Page config
 st.set_page_config(
     page_title="Volve Production Analytics",
-    page_icon="🛢️",
+    page_icon="V",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -190,10 +190,10 @@ def main():
     # =========================================================================
     # HEADER & BUSINESS CONTEXT
     # =========================================================================
-    st.title("🛢️ Volve Production Analytics")
+    st.title("Volve Production Analytics")
 
     # Business Story Section
-    with st.expander("📖 About This Dashboard", expanded=False):
+    with st.expander("About This Dashboard", expanded=False):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -217,9 +217,9 @@ def main():
 
         st.markdown("""
         #### Key Insights to Look For
-        - 📉 **Declining Trends**: Sustained MoM decreases may indicate reservoir depletion
-        - 🔶 **Anomaly Flags**: Large z-scores highlight unusual production behavior worth investigating
-        - 📊 **Model Performance**: Lower MAPE generally indicates better forecast reliability (thresholds vary by context)
+        - **Declining Trends**: Sustained MoM decreases may indicate reservoir depletion
+        - **Anomaly Flags**: Large z-scores highlight unusual production behavior worth investigating
+        - **Model Performance**: Lower MAPE generally indicates better forecast reliability (thresholds vary by context)
 
         ---
         *Data: Volve Field (North Sea), operated by Equinor. Production period: 2008-2016.*
@@ -236,7 +236,7 @@ def main():
         - **Baseline model (seasonal naive)** serves as a benchmark, not a competitor—ETS should outperform it
         """)
 
-    st.markdown('<p class="tooltip">💡 Sm³ = Standard cubic meters (volume at standard temperature & pressure)</p>',
+    st.markdown('<p class="tooltip">Sm³ = Standard cubic meters (volume at standard temperature &amp; pressure)</p>',
                 unsafe_allow_html=True)
 
     # =========================================================================
@@ -251,7 +251,7 @@ def main():
     # =========================================================================
     # SIDEBAR FILTERS
     # =========================================================================
-    st.sidebar.header("🎛️ Filters")
+    st.sidebar.header("Filters")
     st.sidebar.markdown('<p class="tooltip">Configure your analysis view</p>', unsafe_allow_html=True)
 
     mode = st.sidebar.radio(
@@ -263,7 +263,7 @@ def main():
     if mode == "Single Wellbore":
         wellbores = sorted(df["wellbore"].unique())
         wellbore = st.sidebar.selectbox("Select Wellbore", wellbores, help="Choose a specific wellbore to analyze")
-        st.sidebar.info(f"📍 Viewing: **{wellbore}**")
+        st.sidebar.info(f"Viewing: **{wellbore}**")
 
     min_date = df["date"].min()
     max_date = df_active["date"].max()
@@ -274,14 +274,14 @@ def main():
         help="Filter production data to this period"
     )
 
-    st.sidebar.header("🔮 Forecasting")
+    st.sidebar.header("Forecasting")
     forecast_model = st.sidebar.selectbox(
         "Model", ["ets", "baseline"],
         format_func=lambda x: "Exponential Smoothing (ETS)" if x == "ets" else "Seasonal Naive (Baseline)",
         help="ETS: Flexible model capturing trend and seasonality (Holt-Winters)\nSeasonal Naive: Benchmark using same month from prior year"
     )
 
-    st.sidebar.header("⚠️ Anomaly Detection")
+    st.sidebar.header("Anomaly Detection")
     anomaly_threshold = st.sidebar.slider(
         "Z-Score Threshold", min_value=1.0, max_value=4.0, value=2.5, step=0.5,
         help="Higher = fewer anomalies flagged. 2-3 is typical."
@@ -319,7 +319,7 @@ def main():
     # =========================================================================
     # KPI SECTION
     # =========================================================================
-    st.header("📊 Key Performance Indicators")
+    st.header("Key Performance Indicators")
     if mode == "Single Wellbore":
         st.markdown(f"**Currently viewing: {wellbore}**")
 
@@ -363,13 +363,13 @@ def main():
         yoy = summary.get("yoy_change_pct")
         st.metric("YoY Change (Oil)", f"{yoy:+.1f}%" if yoy else "N/A", help="Year-over-year change in oil production")
 
-    st.caption(f"📅 Report period: {summary.get('report_month', 'N/A')}")
+    st.caption(f"Report period: {summary.get('report_month', 'N/A')}")
 
     # =========================================================================
     # TOP WELLBORES
     # =========================================================================
     if mode == "Total Field":
-        st.header("🏆 Top Producing Wellbores")
+        st.header("Top Producing Wellbores")
         top_wellbores = get_top_wellbores(df_filtered, n=5)
 
         if len(top_wellbores) > 0 and top_wellbores["oil"].sum() > 0:
@@ -385,9 +385,9 @@ def main():
     # =========================================================================
     # PRODUCTION TRENDS
     # =========================================================================
-    st.header(f"📈 Production Trends — {series_title}")
+    st.header(f"Production Trends — {series_title}")
 
-    tab1, tab2, tab3 = st.tabs(["🛢️ Oil", "🔥 Gas", "💧 Water"])
+    tab1, tab2, tab3 = st.tabs(["Oil", "Gas", "Water"])
 
     with tab1:
         if len(series_df) > 0 and "oil" in series_df.columns:
@@ -413,7 +413,7 @@ def main():
     # =========================================================================
     # FORECASTING WITH VALIDATION
     # =========================================================================
-    st.header("🔮 Production Forecast & Model Validation")
+    st.header("Production Forecast & Model Validation")
 
     forecast_df = generate_forecast(df_active, series_id, forecast_model, horizon=6)
     backtest_results, metrics = run_backtest(df_active, series_id, forecast_model, test_periods=12)
@@ -579,7 +579,7 @@ def main():
         else:
             st.info("Insufficient data for backtest metrics.")
 
-        with st.expander("📋 Assumptions & Limitations"):
+        with st.expander("Assumptions & Limitations"):
             st.markdown("""
             - **Seasonality**: 12-month cycle assumed
             - **Structural breaks**: This series has declining production; model captures trend but may lag sharp changes
@@ -592,7 +592,7 @@ def main():
     # =========================================================================
     # ANOMALY DETECTION
     # =========================================================================
-    st.header("⚠️ Anomaly Detection")
+    st.header("Anomaly Detection")
 
     st.markdown(f'<p class="tooltip">Method: Rolling 6-month Z-score | Threshold: |z| > {anomaly_threshold} | Monitoring: {anomaly_column.upper()}</p>', unsafe_allow_html=True)
 
@@ -658,7 +658,7 @@ def main():
                 anomaly_table.columns = ["Date", "Value", "Rolling Avg", "Z-Score"]
                 st.dataframe(anomaly_table.head(10), hide_index=True, use_container_width=True)
             else:
-                st.success("✅ **0 anomalies** flagged")
+                st.success("**0 anomalies** flagged")
                 st.markdown("All observations within normal range.")
 
                 # Empty state table
@@ -686,14 +686,14 @@ def main():
     # =========================================================================
     # DATA EXPORT
     # =========================================================================
-    st.header("📥 Data Export")
+    st.header("Data Export")
     st.caption("Exports reflect current filter selections (date range, wellbore, model)")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.download_button(
-            "📄 Download Production Data",
+            "Download Production Data",
             data=df_filtered.to_csv(index=False),
             file_name="volve_production.csv",
             mime="text/csv",
@@ -704,7 +704,7 @@ def main():
     with col2:
         if forecast_df is not None:
             st.download_button(
-                "📈 Download Forecasts",
+                "Download Forecasts",
                 data=forecast_df.to_csv(index=False),
                 file_name="volve_forecast.csv",
                 mime="text/csv",
@@ -715,7 +715,7 @@ def main():
     with col3:
         if len(anomaly_df) > 0:
             st.download_button(
-                "⚠️ Download Anomaly Report",
+                "Download Anomaly Report",
                 data=anomaly_df.to_csv(index=False),
                 file_name="volve_anomalies.csv",
                 mime="text/csv",
