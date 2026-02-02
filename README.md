@@ -5,7 +5,6 @@ A production forecasting and KPI dashboard for oil & gas operations, built to su
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.29+-red.svg)
 ![Tests](https://img.shields.io/badge/Tests-31%20Passing-brightgreen.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 **[Live Demo](https://volve-analytics.streamlit.app/)**
 
@@ -170,3 +169,4 @@ volve-production-analytics/
 ## Contact
 
 **Zohair Omar** — [GitHub](https://github.com/zohairomar1)
+
