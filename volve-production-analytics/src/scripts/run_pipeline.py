@@ -8,10 +8,12 @@ Execute the full production analytics pipeline:
 3. Generate forecasts
 4. Run backtesting evaluation
 5. Generate email summary report
+6. Sync outputs to SharePoint (optional)
 
 Usage:
     python -m src.scripts.run_pipeline --input data/raw/volve_production.csv
     python -m src.scripts.run_pipeline  # uses default location
+    python -m src.scripts.run_pipeline --sync-sharepoint  # sync to SharePoint
 """
 
 import argparse
@@ -22,12 +24,13 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import RAW_DATA_DIR, PROCESSED_DATA_DIR
+from src.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, SHAREPOINT_SITE_URL
 from src.data_prep import prepare_data, load_processed_data
 from src.features import engineer_features
 from src.forecasting import forecast_series, forecast_all_wellbores
 from src.evaluation import evaluate_models, save_metrics
 from src.reporting import save_email_summary
+from src.io_sharepoint import SharePointClient, sync_to_sharepoint
 
 
 def find_raw_data_file() -> Path:
@@ -51,7 +54,7 @@ def find_raw_data_file() -> Path:
     )
 
 
-def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
+def run_pipeline(input_path: Path = None, verbose: bool = True, sync_sharepoint: bool = False) -> dict:
     """
     Run the complete analytics pipeline.
 
@@ -68,13 +71,14 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
         Pipeline results summary.
     """
     results = {}
+    total_steps = 6 if sync_sharepoint else 5
 
     # Step 1: Find and prepare data
     if verbose:
         print("=" * 60)
         print("VOLVE PRODUCTION ANALYTICS PIPELINE")
         print("=" * 60)
-        print("\n[1/5] Preparing data...")
+        print(f"\n[1/{total_steps}] Preparing data...")
 
     if input_path is None:
         input_path = find_raw_data_file()
@@ -94,7 +98,7 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
 
     # Step 2: Engineer features
     if verbose:
-        print("\n[2/5] Engineering features...")
+        print(f"\n[2/{total_steps}] Engineering features...")
 
     df_features = engineer_features(df)
 
@@ -103,7 +107,7 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
 
     # Step 3: Generate forecasts
     if verbose:
-        print("\n[3/5] Generating forecasts...")
+        print(f"\n[3/{total_steps}] Generating forecasts...")
 
     # Forecast total production with both models
     baseline_forecast = forecast_series(df, target_col="oil", series_id="TOTAL", model="baseline")
@@ -121,7 +125,7 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
 
     # Step 4: Backtest evaluation
     if verbose:
-        print("\n[4/5] Running backtest evaluation...")
+        print(f"\n[4/{total_steps}] Running backtest evaluation...")
 
     metrics_df = evaluate_models(df, target_col="oil", series_ids=["TOTAL"])
     save_metrics(metrics_df)
@@ -137,12 +141,37 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
 
     # Step 5: Generate email summary
     if verbose:
-        print("\n[5/5] Generating email summary...")
+        print(f"\n[5/{total_steps}] Generating email summary...")
 
     summary_text = save_email_summary(df_features, ets_forecast)
 
     if verbose:
         print(f"      Summary saved to: {PROCESSED_DATA_DIR / 'email_summary.txt'}")
+
+    # Step 6: Sync to SharePoint (optional)
+    if sync_sharepoint:
+        if verbose:
+            print(f"\n[6/{total_steps}] Syncing outputs to SharePoint...")
+
+        use_sharepoint = bool(SHAREPOINT_SITE_URL)
+        try:
+            client = SharePointClient(use_sharepoint=use_sharepoint)
+            uploaded = sync_to_sharepoint(
+                client=client,
+                local_folder=PROCESSED_DATA_DIR,
+                remote_folder="Pipeline Outputs",
+                file_pattern="*.csv",
+            )
+            results["sharepoint_synced"] = uploaded
+            mode_label = "SharePoint" if use_sharepoint else "local fallback"
+            if verbose:
+                print(f"      Mode: {mode_label}")
+                print(f"      Synced {len(uploaded)} file(s): {uploaded}")
+        except Exception as e:
+            results["sharepoint_synced"] = []
+            if verbose:
+                print(f"      SharePoint sync failed: {e}")
+                print("      Pipeline results are still available locally.")
 
     # Final output
     if verbose:
@@ -155,6 +184,8 @@ def run_pipeline(input_path: Path = None, verbose: bool = True) -> dict:
         print("  - forecasts.csv")
         print("  - metrics.json")
         print("  - email_summary.txt")
+        if sync_sharepoint:
+            print("  - (synced to SharePoint or local fallback)")
 
     return results
 
@@ -174,11 +205,17 @@ def main():
         action="store_true",
         help="Suppress progress messages"
     )
+    parser.add_argument(
+        "--sync-sharepoint",
+        action="store_true",
+        default=False,
+        help="Sync pipeline outputs to SharePoint (requires Azure AD credentials; falls back to local copy)"
+    )
 
     args = parser.parse_args()
 
     input_path = Path(args.input) if args.input else None
-    run_pipeline(input_path=input_path, verbose=not args.quiet)
+    run_pipeline(input_path=input_path, verbose=not args.quiet, sync_sharepoint=args.sync_sharepoint)
 
 
 if __name__ == "__main__":

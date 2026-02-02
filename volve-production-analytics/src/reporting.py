@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, Dict
 from pathlib import Path
 
-from .config import PROCESSED_DATA_DIR, DASHBOARD_URL
+from .config import PROCESSED_DATA_DIR, DASHBOARD_URL, SHAREPOINT_SITE_URL
 from .features import add_rolling_features
 
 
@@ -295,7 +295,7 @@ def save_email_summary(
     if output_path is None:
         output_path = PROCESSED_DATA_DIR / "email_summary.txt"
 
-    summary_text = generate_email_summary(df, forecast_df)
+    summary_text = generate_email_summary(df, forecast_df, sharepoint_url=SHAREPOINT_SITE_URL)
 
     with open(output_path, "w") as f:
         f.write(summary_text)

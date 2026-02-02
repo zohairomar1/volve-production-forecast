@@ -22,7 +22,7 @@ import sys
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
+from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR, SHAREPOINT_SITE_URL
 from src.data_prep import prepare_data, load_processed_data, aggregate_total_production
 from src.features import engineer_features
 from src.forecasting import forecast_series, get_historical_with_forecast
@@ -66,10 +66,14 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Load and cache production data."""
+    """Load and cache production data. Returns (DataFrame, source_info dict)."""
+    source_info = {"mode": "local", "path": "", "detail": ""}
+
     processed_path = PROCESSED_DATA_DIR / "volve_monthly.parquet"
     if processed_path.exists():
         df = load_processed_data(processed_path)
+        source_info["path"] = str(processed_path.name)
+        source_info["detail"] = "Pre-processed parquet"
     else:
         raw_paths = [
             RAW_DATA_DIR / "Volve production data.csv",
@@ -78,12 +82,19 @@ def load_data():
         for path in raw_paths:
             if path.exists():
                 df = prepare_data(path, save_output=True)
+                source_info["path"] = str(path.name)
+                source_info["detail"] = "Raw CSV (processed on load)"
                 break
         else:
             st.error("No data found. Please place Volve production data in data/raw/")
-            return None
+            return None, source_info
+
+    if SHAREPOINT_SITE_URL:
+        source_info["mode"] = "sharepoint"
+        source_info["detail"] = "SharePoint (Microsoft Graph API)"
+
     df = engineer_features(df)
-    return df
+    return df, source_info
 
 
 @st.cache_data
@@ -242,11 +253,34 @@ def main():
     # =========================================================================
     # LOAD DATA
     # =========================================================================
-    df = load_data()
-    if df is None:
+    result = load_data()
+    if result is None or result[0] is None:
         return
+    df, source_info = result
 
     df_active = get_active_production_data(df)
+
+    # =========================================================================
+    # DATA SOURCE INFO
+    # =========================================================================
+    st.sidebar.header("Data Source", anchor=False)
+
+    if source_info["mode"] == "sharepoint":
+        st.sidebar.success("SharePoint Connected")
+        st.sidebar.caption(f"Site: {SHAREPOINT_SITE_URL}")
+    else:
+        st.sidebar.info("Local Mode")
+
+    with st.sidebar.expander("Connection Details"):
+        st.markdown(f"**Mode:** {'SharePoint (Graph API)' if source_info['mode'] == 'sharepoint' else 'Local Filesystem'}")
+        st.markdown(f"**Source:** {source_info.get('detail', 'N/A')}")
+        st.markdown(f"**File:** `{source_info.get('path', 'N/A')}`")
+        if source_info["mode"] == "local":
+            st.markdown("---")
+            st.markdown("**To enable SharePoint:**")
+            st.code("# .env file\nAZURE_TENANT_ID=...\nAZURE_CLIENT_ID=...\nAZURE_CLIENT_SECRET=...\nSHAREPOINT_SITE_URL=https://...", language="bash")
+
+    st.sidebar.markdown("---")
 
     # =========================================================================
     # SIDEBAR FILTERS
@@ -730,7 +764,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #6b7280; font-size: 0.85rem;">
         <strong>Volve Production Analytics</strong> | Data: Equinor Volve Field (CC BY-NC-SA 4.0)<br>
-        Built with Python, Streamlit, Plotly, and statsmodels
+        Built with Python, Streamlit, Plotly, statsmodels, and Microsoft Graph API
     </div>
     """, unsafe_allow_html=True)
 

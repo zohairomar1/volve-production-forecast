@@ -31,6 +31,8 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 | **Model Validation** | Rolling-origin backtesting with MAE, RMSE, MAPE, WAPE |
 | **Anomaly Detection** | Rolling z-score method with configurable sensitivity |
 | **Data Export** | Download filtered production, forecasts, and anomaly reports |
+| **SharePoint Integration** | Dual-mode I/O via Microsoft Graph API with local fallback |
+| **Power Automate** | Automated weekly report distribution via Outlook |
 
 ---
 
@@ -51,6 +53,7 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 - **Data Visualization**: Interactive Plotly charts with confidence intervals
 - **Dashboard Development**: Streamlit with caching, filters, and responsive layout
 - **Software Engineering**: Modular codebase, unit tests (31 passing), CI/CD with GitHub Actions
+- **Enterprise Integration**: SharePoint I/O via Microsoft Graph API (Azure AD OAuth2, dual-mode with local fallback), Power Automate report automation
 
 ---
 
@@ -135,10 +138,10 @@ volve-production-analytics/
 │   ├── forecasting.py        # ETS & baseline models
 │   ├── evaluation.py         # Backtesting & metrics (MAE, MAPE, WAPE, RMSE)
 │   ├── reporting.py          # Email summaries
-│   └── io_sharepoint.py      # SharePoint integration
+│   └── io_sharepoint.py      # SharePoint I/O (Microsoft Graph API, dual-mode)
 ├── tests/                    # Unit tests (31 passing)
 ├── notebooks/                # EDA & model development
-└── automation/               # Power Automate workflow docs
+└── automation/               # Power Automate flow definition & docs
 ```
 
 ---
@@ -153,6 +156,40 @@ volve-production-analytics/
 | Forecasting | statsmodels (ExponentialSmoothing) |
 | Testing | Pytest |
 | CI/CD | GitHub Actions |
+| Integration | Microsoft Graph API, Azure AD (OAuth2), Power Automate |
+
+---
+
+## Enterprise Integration
+
+The pipeline supports optional SharePoint and Power Automate integration for enterprise data workflows.
+
+```
+SharePoint (Raw Data)  -->  Python Pipeline  -->  SharePoint (Processed)
+                                                         |
+                                                         v
+                            Email (Recipients)  <--  Power Automate Flow
+```
+
+| Component | Details |
+|-----------|---------|
+| **Authentication** | Azure AD app registration (client credentials flow) |
+| **API** | Microsoft Graph API v1.0 |
+| **Operations** | List, download, upload files to SharePoint document libraries |
+| **Fallback** | Local filesystem — works without any credentials |
+| **Pipeline Flag** | `--sync-sharepoint` on `run_pipeline.py` |
+| **Dashboard** | Sidebar shows connection status (Local / SharePoint) |
+| **Report Distribution** | Power Automate flow sends weekly email with attachments |
+
+```bash
+# Run pipeline with SharePoint sync (falls back to local if no credentials)
+python -m src.scripts.run_pipeline --sync-sharepoint
+
+# Run pipeline without SharePoint (default)
+python -m src.scripts.run_pipeline
+```
+
+Without credentials, the `--sync-sharepoint` flag copies outputs via the local fallback path, demonstrating the integration pattern without requiring a SharePoint tenant.
 
 ---
 
@@ -162,6 +199,8 @@ volve-production-analytics/
 - [ ] Add change-point detection for structural break identification
 - [ ] Implement well-level hierarchical forecasting
 - [x] ~~Deploy to Streamlit Cloud~~ — [Live](https://volve-analytics.streamlit.app/)
+- [x] ~~SharePoint integration~~ — Dual-mode I/O with local fallback
+- [x] ~~Power Automate flow~~ — Weekly report distribution
 - [ ] Add Prophet model for comparison
 
 ---

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "name": "Volve Weekly Production Report",
+    "description": "Reads pipeline outputs from SharePoint and sends a formatted email report to the production team.",
+    "author": "Zohair Omar",
+    "version": "1.0"
+  },
+  "triggers": {
+    "Recurrence": {
+      "type": "Recurrence",
+      "recurrence": {
+        "frequency": "Week",
+        "interval": 1,
+        "schedule": {
+          "weekDays": ["Monday"],
+          "hours": ["9"]
+        },
+        "timeZone": "Eastern Standard Time"
+      }
+    }
+  },
+  "actions": {
+    "Scope_-_Try": {
+      "type": "Scope",
+      "actions": {
+        "Get_email_summary": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+              }
+            },
+            "method": "get",
+            "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://yourcompany.sharepoint.com/sites/VolveAnalytics'))}/files/@{encodeURIComponent('Processed Data/email_summary.txt')}/$value"
+          },
+          "runAfter": {}
+        },
+        "Get_monthly_csv": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+              }
+            },
+            "method": "get",
+            "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://yourcompany.sharepoint.com/sites/VolveAnalytics'))}/files/@{encodeURIComponent('Processed Data/volve_monthly.csv')}/$value"
+          },
+          "runAfter": {
+            "Get_email_summary": ["Succeeded"]
+          }
+        },
+        "Get_forecasts_csv": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+              }
+            },
+            "method": "get",
+            "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://yourcompany.sharepoint.com/sites/VolveAnalytics'))}/files/@{encodeURIComponent('Processed Data/forecasts.csv')}/$value"
+          },
+          "runAfter": {
+            "Get_email_summary": ["Succeeded"]
+          }
+        },
+        "Send_email": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['office365']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/v2/Mail",
+            "body": {
+              "To": "production-team@yourcompany.com",
+              "Subject": "Volve Production Report - @{formatDateTime(utcNow(), 'MMMM yyyy')}",
+              "Body": "<html><body><pre>@{body('Get_email_summary')}</pre><hr><p>Data attached. <a href='https://yourcompany.sharepoint.com/sites/VolveAnalytics'>Open SharePoint</a> | <a href='https://volve-analytics.streamlit.app/'>Open Dashboard</a></p></body></html>",
+              "IsHtml": true,
+              "Attachments": [
+                {
+                  "@odata.type": "#Microsoft.OutlookServices.FileAttachment",
+                  "Name": "volve_monthly.csv",
+                  "ContentBytes": "@{base64(body('Get_monthly_csv'))}"
+                },
+                {
+                  "@odata.type": "#Microsoft.OutlookServices.FileAttachment",
+                  "Name": "forecasts.csv",
+                  "ContentBytes": "@{base64(body('Get_forecasts_csv'))}"
+                }
+              ]
+            }
+          },
+          "runAfter": {
+            "Get_monthly_csv": ["Succeeded"],
+            "Get_forecasts_csv": ["Succeeded"]
+          }
+        }
+      },
+      "runAfter": {}
+    },
+    "Scope_-_Catch": {
+      "type": "Scope",
+      "actions": {
+        "Send_error_notification": {
+          "type": "ApiConnection",
+          "inputs": {
+            "host": {
+              "connection": {
+                "name": "@parameters('$connections')['office365']['connectionId']"
+              }
+            },
+            "method": "post",
+            "path": "/v2/Mail",
+            "body": {
+              "To": "admin@yourcompany.com",
+              "Subject": "Volve Pipeline Report - FAILED @{formatDateTime(utcNow(), 'yyyy-MM-dd')}",
+              "Body": "<html><body><h2>Pipeline Report Failed</h2><p>The weekly Volve production report flow encountered an error.</p><p><strong>Timestamp:</strong> @{utcNow()}</p><p>Check SharePoint for missing files or review pipeline logs.</p></body></html>",
+              "IsHtml": true
+            }
+          },
+          "runAfter": {}
+        }
+      },
+      "runAfter": {
+        "Scope_-_Try": ["Failed", "TimedOut"]
+      }
+    }
+  },
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    }
+  }
+}
