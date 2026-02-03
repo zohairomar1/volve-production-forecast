@@ -167,10 +167,19 @@ def run_pipeline(input_path: Path = None, verbose: bool = True, sync_sharepoint:
             if verbose:
                 print(f"      Mode: {mode_label}")
                 print(f"      Synced {len(uploaded)} file(s): {uploaded}")
-        except Exception as e:
+        except (ValueError, RuntimeError, ImportError) as e:
+            # ValueError: missing credentials
+            # RuntimeError: token acquisition failed
+            # ImportError: msal/requests not installed
             results["sharepoint_synced"] = []
             if verbose:
                 print(f"      SharePoint sync failed: {e}")
+                print("      Pipeline results are still available locally.")
+        except OSError as e:
+            # Network or filesystem errors during sync
+            results["sharepoint_synced"] = []
+            if verbose:
+                print(f"      SharePoint sync failed (I/O): {e}")
                 print("      Pipeline results are still available locally.")
 
     # Final output

@@ -4,7 +4,7 @@ A production forecasting and KPI dashboard for oil & gas operations, built to su
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.29+-red.svg)
-![Tests](https://img.shields.io/badge/Tests-31%20Passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-51%20Passing-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 **[Live Demo](https://volve-analytics.streamlit.app/)**
@@ -53,7 +53,7 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 - **Statistical Anomaly Detection**: Z-score normalization with rolling windows
 - **Data Visualization**: Interactive Plotly charts with confidence intervals
 - **Dashboard Development**: Streamlit with caching, filters, and responsive layout
-- **Software Engineering**: Modular codebase, unit tests (31 passing), CI/CD with GitHub Actions
+- **Software Engineering**: Modular codebase, unit tests (51 passing), CI/CD with GitHub Actions
 - **Enterprise Integration**: SharePoint I/O via Microsoft Graph API (Azure AD OAuth2, dual-mode with local fallback), Power Automate report automation
 
 ---

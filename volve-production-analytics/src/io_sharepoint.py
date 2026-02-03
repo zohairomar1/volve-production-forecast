@@ -19,6 +19,7 @@ Usage:
 """
 
 import os
+import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import shutil
@@ -49,9 +50,13 @@ class SharePointClient:
         Whether to use SharePoint API. Defaults to False (local mode).
     """
 
+    # Refresh token 5 minutes before expiry (tokens typically last 3600s)
+    TOKEN_REFRESH_BUFFER = 300
+
     def __init__(self, use_sharepoint: bool = False):
         self.use_sharepoint = use_sharepoint
         self._access_token = None
+        self._token_expiry = 0.0
 
         if use_sharepoint:
             self._validate_credentials()
@@ -74,12 +79,14 @@ class SharePointClient:
         """
         Get OAuth2 access token from Azure AD.
 
+        Caches the token and automatically refreshes before expiry.
+
         Returns
         -------
         str
             Access token for Microsoft Graph API.
         """
-        if self._access_token:
+        if self._access_token and time.time() < self._token_expiry - self.TOKEN_REFRESH_BUFFER:
             return self._access_token
 
         try:
@@ -99,9 +106,11 @@ class SharePointClient:
 
         if "access_token" in result:
             self._access_token = result["access_token"]
+            # Azure AD tokens include expires_in (seconds); default to 3600 if missing
+            self._token_expiry = time.time() + result.get("expires_in", 3600)
             return self._access_token
         else:
-            raise Exception(f"Failed to get access token: {result.get('error_description')}")
+            raise RuntimeError(f"Failed to get access token: {result.get('error_description')}")
 
     def _graph_request(
         self,

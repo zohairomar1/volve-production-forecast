@@ -27,6 +27,7 @@ from src.data_prep import prepare_data, load_processed_data, aggregate_total_pro
 from src.features import engineer_features
 from src.forecasting import forecast_series, get_historical_with_forecast
 from src.reporting import get_last_month_summary, get_top_wellbores
+from src.io_sharepoint import SharePointClient, sync_from_sharepoint
 
 # Page config
 st.set_page_config(
@@ -66,9 +67,37 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Load and cache production data. Returns (DataFrame, source_info dict)."""
+    """Load and cache production data. Returns (DataFrame, source_info dict).
+
+    Loading strategy:
+    1. If SharePoint is configured, attempt to sync raw data from SharePoint first
+    2. Fall back to local processed parquet if available
+    3. Fall back to local raw CSV
+    """
     source_info = {"mode": "local", "path": "", "detail": ""}
 
+    # Attempt SharePoint sync if credentials are configured
+    if SHAREPOINT_SITE_URL:
+        try:
+            client = SharePointClient(use_sharepoint=True)
+            downloaded = sync_from_sharepoint(
+                client=client,
+                remote_folder="",
+                local_folder=RAW_DATA_DIR,
+                file_pattern="*.csv",
+            )
+            if downloaded:
+                source_info["mode"] = "sharepoint"
+                source_info["detail"] = "SharePoint (Microsoft Graph API)"
+                source_info["path"] = Path(downloaded[0]).name
+                df = prepare_data(Path(downloaded[0]), save_output=True)
+                df = engineer_features(df)
+                return df, source_info
+        except Exception:
+            # SharePoint unavailable — fall through to local data
+            pass
+
+    # Local loading: processed parquet or raw CSV
     processed_path = PROCESSED_DATA_DIR / "volve_monthly.parquet"
     if processed_path.exists():
         df = load_processed_data(processed_path)
@@ -88,10 +117,6 @@ def load_data():
         else:
             st.error("No data found. Please place Volve production data in data/raw/")
             return None, source_info
-
-    if SHAREPOINT_SITE_URL:
-        source_info["mode"] = "sharepoint"
-        source_info["detail"] = "SharePoint (Microsoft Graph API)"
 
     df = engineer_features(df)
     return df, source_info
