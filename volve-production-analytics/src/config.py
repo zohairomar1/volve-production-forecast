@@ -15,6 +15,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
+DOCS_DIR = PROJECT_ROOT / "docs"
 
 # Ensure directories exist
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
