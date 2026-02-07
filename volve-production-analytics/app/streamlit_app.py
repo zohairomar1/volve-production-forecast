@@ -22,12 +22,18 @@ import sys
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+import json
+from datetime import datetime
+
 from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR, SHAREPOINT_SITE_URL
 from src.data_prep import prepare_data, load_processed_data, aggregate_total_production
 from src.features import engineer_features
 from src.forecasting import forecast_series, get_historical_with_forecast
-from src.reporting import get_last_month_summary, get_top_wellbores
+from src.reporting import get_last_month_summary, get_top_wellbores, detect_anomalies
 from src.io_sharepoint import SharePointClient, sync_from_sharepoint
+from src.copilot import get_active_provider
+from src.knowledge import search_docs, load_all_docs
+from src.automation.status import get_current_status, run_test_report
 
 # Page config
 st.set_page_config(
@@ -216,6 +222,106 @@ def create_sparkline(series, height=50):
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
+
+
+def _build_copilot_context(
+    summary, top_wellbores_df, anomaly_df, anomalies_flagged_df,
+    forecast_df, forecast_model, metrics, comparison_metrics, filters
+):
+    """Build the context dict that the copilot provider consumes."""
+    ctx = {
+        "summary": summary,
+        "top_wellbores": (
+            top_wellbores_df.to_dict(orient="records")
+            if top_wellbores_df is not None and len(top_wellbores_df) > 0
+            else []
+        ),
+        "anomalies": (
+            detect_anomalies(anomaly_df).to_dict(orient="records")
+            if anomaly_df is not None and len(anomaly_df) > 0
+            else []
+        ),
+        "zscore_anomalies": (
+            anomalies_flagged_df.to_dict(orient="records")
+            if anomalies_flagged_df is not None and len(anomalies_flagged_df) > 0
+            else []
+        ),
+        "forecast": {},
+        "backtest_metrics": metrics or {},
+        "comparison_metrics": comparison_metrics or {},
+        "filters": filters,
+    }
+
+    if forecast_df is not None and len(forecast_df) > 0:
+        ctx["forecast"] = {
+            "model": forecast_model,
+            "yhat_next": float(forecast_df["yhat"].iloc[0]),
+            "values": forecast_df[["date", "yhat"]].head(6).assign(
+                date=lambda d: d["date"].dt.strftime("%Y-%m")
+            ).to_dict(orient="records"),
+        }
+
+    return ctx
+
+
+def _build_export_json(
+    summary, top_wellbores_df, anomaly_df, forecast_df,
+    metrics, filters, anomaly_threshold
+):
+    """Build the JSON export payload for automation tool consumption."""
+    payload = {
+        "export_timestamp": datetime.now().isoformat(),
+        "filters": filters,
+        "kpis": {
+            "report_month": summary.get("report_month"),
+            "total_oil": summary.get("total_oil"),
+            "total_gas": summary.get("total_gas"),
+            "total_water": summary.get("total_water"),
+            "mom_change_pct": summary.get("mom_change_pct"),
+            "yoy_change_pct": summary.get("yoy_change_pct"),
+        },
+        "top_wellbores": (
+            top_wellbores_df.to_dict(orient="records")
+            if top_wellbores_df is not None and len(top_wellbores_df) > 0
+            else []
+        ),
+        "anomaly_count": (
+            int(anomaly_df["is_anomaly"].sum())
+            if anomaly_df is not None and len(anomaly_df) > 0
+            and "is_anomaly" in anomaly_df.columns
+            else 0
+        ),
+        "anomaly_threshold": anomaly_threshold,
+        "forecast": [],
+        "forecast_deltas": {},
+        "model_metrics": {},
+    }
+
+    if forecast_df is not None and len(forecast_df) > 0:
+        fc_records = forecast_df[["date", "yhat"]].copy()
+        fc_records["date"] = fc_records["date"].dt.strftime("%Y-%m-%d")
+        payload["forecast"] = fc_records.to_dict(orient="records")
+
+        if summary.get("total_oil") and len(forecast_df) > 0:
+            next_fc = float(forecast_df["yhat"].iloc[0])
+            last_actual = float(summary["total_oil"])
+            payload["forecast_deltas"] = {
+                "last_actual": last_actual,
+                "next_forecast": next_fc,
+                "delta": round(next_fc - last_actual, 2),
+                "delta_pct": (
+                    round((next_fc - last_actual) / last_actual * 100, 1)
+                    if last_actual > 0 else None
+                ),
+            }
+
+    if metrics:
+        payload["model_metrics"] = {
+            k: v for k, v in metrics.items()
+            if k in ("mape", "wape", "mae", "rmse", "n_observations")
+        }
+
+    return json.dumps(payload, indent=2, default=str)
 
 
 # =============================================================================
@@ -743,12 +849,150 @@ def main():
         st.info("Insufficient data for anomaly detection.")
 
     # =========================================================================
+    # OPERATIONS COPILOT
+    # =========================================================================
+    st.header("Operations Copilot", anchor=False, divider="gray")
+    st.caption("Ask questions about KPIs, anomalies, forecasts, and model validation. "
+               "Powered by a rule-based engine (no external AI service required).")
+
+    # Build context from data already computed above
+    _top_wb = get_top_wellbores(df_filtered, n=5) if mode == "Total Field" else pd.DataFrame()
+    _anomalies_flagged_for_ctx = (
+        anomaly_df[anomaly_df["is_anomaly"] == True] if len(anomaly_df) > 0 and "is_anomaly" in anomaly_df.columns
+        else pd.DataFrame()
+    )
+    copilot_context = _build_copilot_context(
+        summary=summary,
+        top_wellbores_df=_top_wb,
+        anomaly_df=df_filtered,
+        anomalies_flagged_df=_anomalies_flagged_for_ctx,
+        forecast_df=forecast_df,
+        forecast_model=forecast_model,
+        metrics=metrics,
+        comparison_metrics=comparison_metrics,
+        filters={
+            "mode": mode,
+            "wellbore": wellbore or "All",
+            "date_range": f"{date_range[0]} to {date_range[1]}" if len(date_range) == 2 else "All",
+            "model": forecast_model,
+        },
+    )
+
+    # Action buttons
+    col_a1, col_a2, col_a3 = st.columns(3)
+    with col_a1:
+        if st.button(":material/summarize: Weekly Ops Summary", key="copilot_summary"):
+            st.session_state["copilot_query"] = "weekly ops summary"
+    with col_a2:
+        if st.button(":material/trending_up: Why Did Forecast Change?", key="copilot_drivers"):
+            st.session_state["copilot_query"] = "why did the forecast change"
+    with col_a3:
+        if st.button(":material/mail: Draft Email Summary", key="copilot_email"):
+            st.session_state["copilot_query"] = "draft email summary"
+
+    # Free-text input
+    user_query = st.text_input(
+        "Ask a question",
+        value=st.session_state.get("copilot_query", ""),
+        placeholder="e.g., What are the current KPIs? How many anomalies were detected?",
+        key="copilot_input",
+    )
+
+    if user_query:
+        provider = get_active_provider()
+        doc_results = search_docs(user_query)
+        response = provider.answer(user_query, copilot_context, docs=doc_results)
+
+        st.markdown(f"**{provider.name}**")
+        st.code(response["answer"], language=None)
+        if response["sources"]:
+            st.caption("Sources: " + ", ".join(response["sources"]))
+
+        # Clear trigger so button clicks don't persist across reruns
+        if "copilot_query" in st.session_state:
+            del st.session_state["copilot_query"]
+
+    # =========================================================================
+    # KNOWLEDGE BASE
+    # =========================================================================
+    with st.expander("Knowledge Base", expanded=False, icon=":material/menu_book:"):
+        kb_docs = load_all_docs()
+        if kb_docs:
+            selected_doc = st.selectbox(
+                "Select Document",
+                options=[d["title"] for d in kb_docs],
+                key="kb_doc_select",
+            )
+            doc = next(d for d in kb_docs if d["title"] == selected_doc)
+            st.markdown(doc["content"])
+        else:
+            st.info("No documentation found in docs/ directory.")
+
+    # =========================================================================
+    # AUTOMATION STATUS
+    # =========================================================================
+    with st.expander("Automation Status", expanded=False, icon=":material/settings:"):
+        auto_status = get_current_status()
+
+        col_s1, col_s2, col_s3 = st.columns(3)
+        with col_s1:
+            st.metric("Storage Mode", auto_status["storage_mode"].title())
+        with col_s2:
+            st.metric("Pipeline Output",
+                       "Available" if auto_status["last_pipeline_output_exists"] else "Not Found")
+        with col_s3:
+            st.metric("Processed Files", len(auto_status["processed_files"]))
+
+        if auto_status["processed_files"]:
+            st.caption("Files: " + ", ".join(sorted(auto_status["processed_files"])[:8]))
+
+        st.markdown("---")
+        st.markdown("**Test Harness**")
+
+        failure_mode = st.selectbox(
+            "Failure Simulation",
+            ["None", "Missing Credentials", "SharePoint I/O Failure"],
+            key="failure_sim",
+        )
+        sim_map = {
+            "None": None,
+            "Missing Credentials": "missing_credentials",
+            "SharePoint I/O Failure": "sharepoint_io",
+        }
+
+        if st.button(":material/play_arrow: Run Report Now (Test)", key="test_run"):
+            result = run_test_report(
+                df_filtered, forecast_df,
+                simulate_failure=sim_map[failure_mode],
+            )
+
+            if "run_log" not in st.session_state:
+                st.session_state["run_log"] = []
+            st.session_state["run_log"].insert(0, result)
+
+            if result["status"] == "success":
+                st.success(f"Test run completed in {result['duration_seconds']}s")
+                if result.get("summary_preview"):
+                    with st.expander("Summary Preview"):
+                        st.code(result["summary_preview"], language="json")
+            else:
+                st.error(f"Test run failed: {result['error_message']}")
+
+        if st.session_state.get("run_log"):
+            st.markdown("**Run History**")
+            log_data = st.session_state["run_log"][:10]
+            log_df = pd.DataFrame(log_data)[
+                ["timestamp", "status", "storage_mode", "duration_seconds", "is_test_run"]
+            ]
+            st.dataframe(log_df, hide_index=True, use_container_width=True)
+
+    # =========================================================================
     # DATA EXPORT
     # =========================================================================
     st.header("Data Export", anchor=False, divider="gray")
     st.caption("Exports reflect current filter selections (date range, wellbore, model)")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.download_button(
@@ -757,7 +1001,7 @@ def main():
             file_name="volve_production.csv",
             mime="text/csv",
             help="Download filtered production data as CSV",
-            key="download_production"  # Unique key prevents duplication
+            key="download_production"
         )
 
     with col2:
@@ -768,7 +1012,7 @@ def main():
                 file_name="volve_forecast.csv",
                 mime="text/csv",
                 help="Download forecast data as CSV",
-                key="download_forecast"  # Unique key prevents duplication
+                key="download_forecast"
             )
 
     with col3:
@@ -779,8 +1023,32 @@ def main():
                 file_name="volve_anomalies.csv",
                 mime="text/csv",
                 help="Download anomaly detection results",
-                key="download_anomaly"  # Unique key prevents duplication
+                key="download_anomaly"
             )
+
+    with col4:
+        export_json = _build_export_json(
+            summary=summary,
+            top_wellbores_df=_top_wb,
+            anomaly_df=anomaly_df,
+            forecast_df=forecast_df,
+            metrics=metrics,
+            filters={
+                "mode": mode,
+                "wellbore": wellbore or "All",
+                "date_range": f"{date_range[0]} to {date_range[1]}" if len(date_range) == 2 else "All",
+                "forecast_model": forecast_model,
+            },
+            anomaly_threshold=anomaly_threshold,
+        )
+        st.download_button(
+            ":material/download: Summary (JSON)",
+            data=export_json,
+            file_name="volve_summary.json",
+            mime="application/json",
+            help="JSON payload for Power Automate / UiPath consumption",
+            key="download_json",
+        )
 
     # =========================================================================
     # FOOTER
