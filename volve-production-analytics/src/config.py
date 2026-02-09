@@ -90,5 +90,8 @@ AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "")
 AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET", "")
 
+# Gemini AI settings (from environment)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 # Dashboard
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:8501")
