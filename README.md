@@ -52,7 +52,7 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 - **Statistical Anomaly Detection**: Z-score normalization with rolling windows
 - **Data Visualization**: Interactive Plotly charts with confidence intervals
 - **Dashboard Development**: Streamlit with caching, filters, and responsive layout
-- **Software Engineering**: Modular codebase, unit tests (51 passing), CI/CD with GitHub Actions
+- **Software Engineering**: Modular codebase, unit tests (105 passing), CI/CD with GitHub Actions
 - **Enterprise Integration**: SharePoint I/O via Microsoft Graph API (Azure AD OAuth2, dual-mode with local fallback), Power Automate report automation
 
 ---
@@ -139,7 +139,7 @@ volve-production-analytics/
 │   ├── evaluation.py         # Backtesting & metrics (MAE, MAPE, WAPE, RMSE)
 │   ├── reporting.py          # Email summaries
 │   └── io_sharepoint.py      # SharePoint I/O (Microsoft Graph API, dual-mode)
-├── tests/                    # Unit tests (31 passing)
+├── tests/                    # Unit tests (105 passing)
 ├── notebooks/                # EDA & model development
 └── automation/               # Power Automate flow definition & docs
 ```
