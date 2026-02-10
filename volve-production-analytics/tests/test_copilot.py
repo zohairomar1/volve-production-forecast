@@ -1,11 +1,12 @@
 """Tests for the copilot module."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 
 from src.copilot import get_active_provider
 from src.copilot.provider import CopilotProvider
 from src.copilot.rule_engine import RuleBasedProvider, INTENT_PATTERNS
-from src.copilot.placeholders import AzureOpenAIProvider, GoogleVertexProvider
+from src.copilot.placeholders import AzureOpenAIProvider, GoogleGeminiProvider
 
 
 # ---------------------------------------------------------------------------
@@ -77,16 +78,101 @@ class TestProviderRegistry:
     def test_azure_not_available(self):
         assert AzureOpenAIProvider().is_available is False
 
-    def test_google_not_available(self):
-        assert GoogleVertexProvider().is_available is False
+    def test_gemini_not_available_when_no_key(self):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", ""):
+            p = GoogleGeminiProvider()
+            assert p.is_available is False
 
     def test_azure_raises_not_implemented(self):
         with pytest.raises(NotImplementedError):
             AzureOpenAIProvider().answer("test", {})
 
-    def test_google_raises_not_implemented(self):
-        with pytest.raises(NotImplementedError):
-            GoogleVertexProvider().answer("test", {})
+    def test_gemini_name(self):
+        assert GoogleGeminiProvider().name == "Google Gemini"
+
+
+# ---------------------------------------------------------------------------
+# Gemini provider
+# ---------------------------------------------------------------------------
+
+class TestGeminiProvider:
+    def test_available_when_key_set(self):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            assert p.is_available is True
+
+    def test_not_available_when_no_key(self):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", ""):
+            p = GoogleGeminiProvider()
+            assert p.is_available is False
+
+    def test_answer_returns_expected_format(self, sample_context):
+        mock_response = MagicMock()
+        mock_response.text = "Oil production declined 5.2% month-over-month."
+
+        mock_model = MagicMock()
+        mock_model.generate_content.return_value = mock_response
+
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            p._model = mock_model
+
+            result = p.answer("weekly summary", sample_context)
+            assert "answer" in result
+            assert "sources" in result
+            assert "action" in result
+            assert result["sources"][0] == "Google Gemini"
+            assert result["action"] is None
+            assert "declined" in result["answer"]
+
+    def test_prompt_includes_context(self, sample_context):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            prompt = p._build_prompt("show KPIs", sample_context)
+            assert "45,000" in prompt
+            assert "September 2015" in prompt
+            assert "show KPIs" in prompt
+
+    def test_prompt_includes_docs(self, sample_context):
+        docs = [
+            {"title": "KPI Def", "heading": "WAPE", "snippet": "Weighted error", "score": 0.8},
+        ]
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            prompt = p._build_prompt("what is WAPE", sample_context, docs=docs)
+            assert "Knowledge Base" in prompt
+            assert "KPI Def" in prompt
+            assert "Weighted error" in prompt
+
+    def test_answer_includes_doc_sources(self, sample_context):
+        mock_response = MagicMock()
+        mock_response.text = "WAPE is Weighted Absolute Percentage Error."
+
+        mock_model = MagicMock()
+        mock_model.generate_content.return_value = mock_response
+
+        docs = [
+            {"title": "KPI Def", "heading": "WAPE", "snippet": "Weighted error", "score": 0.8},
+        ]
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            p._model = mock_model
+
+            result = p.answer("what is WAPE", sample_context, docs=docs)
+            assert "Google Gemini" in result["sources"]
+            assert "KPI Def" in result["sources"]
+
+    def test_get_active_provider_returns_gemini_when_key_set(self):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            provider = get_active_provider()
+            assert isinstance(provider, GoogleGeminiProvider)
+
+    def test_prompt_handles_empty_context(self):
+        with patch("src.copilot.placeholders.GEMINI_API_KEY", "test-key-123"):
+            p = GoogleGeminiProvider()
+            prompt = p._build_prompt("hello", {})
+            assert "hello" in prompt
+            assert "oil & gas" in prompt
 
 
 # ---------------------------------------------------------------------------

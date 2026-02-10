@@ -4,7 +4,7 @@ A production forecasting and KPI dashboard for oil & gas operations, built to su
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.29+-red.svg)
-![Tests](https://img.shields.io/badge/Tests-105%20Passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-113%20Passing-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 **[Live Demo](https://volve-analytics.streamlit.app/)**
@@ -57,9 +57,9 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 - **Statistical Anomaly Detection**: Z-score normalization with rolling windows
 - **Data Visualization**: Interactive Plotly charts with confidence intervals
 - **Dashboard Development**: Streamlit with caching, filters, and responsive layout
-- **Software Engineering**: Modular codebase, unit tests (105 passing), CI/CD with GitHub Actions
+- **Software Engineering**: Modular codebase, unit tests (113 passing), CI/CD with GitHub Actions
 - **Enterprise Integration**: SharePoint I/O via Microsoft Graph API (Azure AD OAuth2, dual-mode with local fallback), Power Automate report automation
-- **Copilot Architecture**: Vendor-agnostic provider interface (rule-based engine active; Azure OpenAI and Google Vertex AI stubs ready)
+- **Copilot Architecture**: Vendor-agnostic provider interface with Google Gemini integration (rule-based fallback when no API key configured)
 - **RAG Prototype**: Keyword-based document retrieval with cited answers from an in-app knowledge base
 - **Automation Observability**: Pipeline health monitoring, test harness with failure simulation, JSON export for RPA tool consumption
 
@@ -171,6 +171,7 @@ volve-production-analytics/
 | Forecasting | statsmodels (ExponentialSmoothing) |
 | Testing | Pytest |
 | CI/CD | GitHub Actions |
+| AI/LLM | Google Gemini 1.5 Flash (copilot provider) |
 | Integration | Microsoft Graph API, Azure AD (OAuth2), Power Automate |
 
 ---
@@ -210,7 +211,7 @@ Without credentials, the `--sync-sharepoint` flag copies outputs via the local f
 
 ## Operations Copilot
 
-The dashboard includes a rule-based Operations Copilot panel that answers questions about production data without requiring any external AI service.
+The dashboard includes an Operations Copilot panel with a pluggable provider architecture. When `GEMINI_API_KEY` is configured, the copilot uses Google Gemini 1.5 Flash for natural-language answers grounded in the dashboard's live data. Without an API key, it falls back to a deterministic rule-based engine.
 
 **Capabilities:**
 - Weekly operations summary (5-8 data-driven bullets)
@@ -220,9 +221,12 @@ The dashboard includes a rule-based Operations Copilot panel that answers questi
 - Knowledge base search with cited answers
 
 **Provider Architecture:**
-The copilot uses an abstract `CopilotProvider` interface (`src/copilot/provider.py`). The active implementation is `RuleBasedProvider`, which generates answers deterministically from computed data. Placeholder classes exist for `AzureOpenAIProvider` and `GoogleVertexProvider` but are not enabled. To add an LLM provider, implement the `CopilotProvider.answer()` method and set `is_available = True` when credentials are configured.
+The copilot uses an abstract `CopilotProvider` interface (`src/copilot/provider.py`). Three implementations exist:
+- `GoogleGeminiProvider` -- Active when `GEMINI_API_KEY` is set. Sends structured prompts with KPI data, forecast metrics, and knowledge base docs to Gemini 1.5 Flash.
+- `RuleBasedProvider` -- Deterministic fallback. Generates answers from computed data using pattern matching.
+- `AzureOpenAIProvider` -- Placeholder stub (not yet implemented).
 
-No LLM or external AI service is called. All responses are generated from the same data visible in the dashboard.
+The provider is selected automatically at startup: Gemini if available, otherwise rule-based.
 
 ---
 
@@ -274,9 +278,9 @@ No LLM or external AI service is called. All responses are generated from the sa
 
 ## Future Project Ideas (TODO)
 
-- [ ] **Ticket Triage RAG Bot**: Build a support ticket classifier using embeddings + vector search over historical tickets, with an LLM summarizer for resolution suggestions
+- [x] ~~**Ticket Triage RAG Bot**~~ -- Gemini embeddings + cosine similarity retrieval + LLM classification (separate project)
 - [ ] **Well Intervention Optimizer**: Combine production decline curves with maintenance cost data to recommend optimal intervention timing using survival analysis
-- [ ] **LLM-Powered Copilot**: Swap in Azure OpenAI or Gemini via the existing provider interface for natural-language report generation
+- [x] ~~**LLM-Powered Copilot**~~ -- Google Gemini 1.5 Flash via provider interface
 - [ ] **Real-Time Streaming**: Replace batch CSV ingestion with Kafka / Azure Event Hub for live production monitoring
 
 ---

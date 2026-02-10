@@ -4,7 +4,7 @@ A production forecasting and KPI dashboard for oil & gas operations, built to su
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.29+-red.svg)
-![Tests](https://img.shields.io/badge/Tests-51%20Passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-113%20Passing-brightgreen.svg)
 
 **[Live Demo](https://volve-analytics.streamlit.app/)**
 
@@ -52,7 +52,7 @@ This dashboard addresses these needs with an automated analytics pipeline that t
 - **Statistical Anomaly Detection**: Z-score normalization with rolling windows
 - **Data Visualization**: Interactive Plotly charts with confidence intervals
 - **Dashboard Development**: Streamlit with caching, filters, and responsive layout
-- **Software Engineering**: Modular codebase, unit tests (105 passing), CI/CD with GitHub Actions
+- **Software Engineering**: Modular codebase, unit tests (113 passing), CI/CD with GitHub Actions
 - **Enterprise Integration**: SharePoint I/O via Microsoft Graph API (Azure AD OAuth2, dual-mode with local fallback), Power Automate report automation
 
 ---
@@ -202,6 +202,8 @@ Without credentials, the `--sync-sharepoint` flag copies outputs via the local f
 - [x] ~~SharePoint integration~~ — Dual-mode I/O with local fallback
 - [x] ~~Power Automate flow~~ — Weekly report distribution
 - [ ] Add Prophet model for comparison
+- [x] ~~Google Gemini Copilot~~ -- LLM-powered Q&A via provider interface
+- [x] ~~Ticket Triage RAG Bot~~ -- Embeddings + vector search + LLM classification
 
 ---
 
