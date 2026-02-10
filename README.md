@@ -203,7 +203,7 @@ Without credentials, the `--sync-sharepoint` flag copies outputs via the local f
 - [x] ~~Power Automate flow~~ — Weekly report distribution
 - [ ] Add Prophet model for comparison
 - [x] ~~Google Gemini Copilot~~ -- LLM-powered Q&A via provider interface
-- [x] ~~Ticket Triage RAG Bot~~ -- Embeddings + vector search + LLM classification
+- [x] ~~Ticket Triage RAG Bot~~ -- [Separate repo](https://github.com/zohairomar1/ticket-triage-rag-bot)
 
 ---
 
